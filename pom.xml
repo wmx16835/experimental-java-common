@@ -7,7 +7,7 @@
     <version>1.0.0-SNAPSHOT</version>
     <modules>
         <module>alpha</module>
-        <module>beta</module>
+        <module>omega</module>
     </modules>
     <name>common</name>
 
