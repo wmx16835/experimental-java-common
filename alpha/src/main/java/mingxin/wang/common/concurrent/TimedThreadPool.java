@@ -74,9 +74,8 @@ public final class TimedThreadPool implements TimedExecutor {
         mutex.lock();
         try {
             isShutdown = true;
-            for (Worker worker : idle) {
-                worker.condition.signal();
-            }
+            idle.forEach(worker -> worker.condition.signal());
+            pending.forEach(worker -> worker.condition.signal());
         } finally {
             mutex.unlock();
         }
@@ -120,6 +119,9 @@ public final class TimedThreadPool implements TimedExecutor {
                     }
                     pending.add(this);
                     for (;;) {
+                        if (isShutdown) {
+                            return;
+                        }
                         try {
                             if (!condition.awaitUntil(Date.from(task.when))) {
                                 break;
