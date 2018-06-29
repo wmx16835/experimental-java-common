@@ -3,6 +3,7 @@ package mingxin.wang.common.concurrent;
 import com.google.common.base.Preconditions;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.Executor;
@@ -18,8 +19,9 @@ public final class ConcurrentInvoker {
     public boolean syncInvoke(Duration timeout) {
         Preconditions.checkNotNull(timeout);
         DisposableBlocker blocker = new DisposableBlocker();
+        Instant deadline = Instant.now().plus(timeout);
         invoke(blocker::unblock);
-        return blocker.blockFor(timeout);
+        return blocker.blockUntil(deadline);
     }
 
     public void syncInvoke() {

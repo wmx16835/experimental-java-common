@@ -64,5 +64,6 @@ public class OtherTest {
     public static void main(String[] args) {
         Logger logger = LoggerFactory.getLogger(OtherTest.class);
         logger.info("{}", new T(1, 2, BigInteger.TEN));
+        System.out.println(System.nanoTime());
     }
 }
