@@ -12,8 +12,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * Copyright (c) 2017-2018 Mingxin Wang. All rights reserved.
  */
-public final class CirculationTrigger {
-    private static final Logger LOGGER = LoggerFactory.getLogger(CirculationTrigger.class);
+public abstract class TimedCirculation {
+    private static final Logger LOGGER = LoggerFactory.getLogger(TimedCirculation.class);
     private static final int RESERVATION_STATE_OFFSET = 32;
     private static final long IDLE_STATE_MASK = 0x000000007FFFFFFFL;
     private static final long RUNNING_FLAG_MASK = 0x0000000080000000L;
@@ -21,19 +21,17 @@ public final class CirculationTrigger {
 
     private final AtomicLong state;
     private final TimedExecutor executor;
-    private final CirculatingRunnable runnable;
 
-    public static CirculationTrigger bind(TimedExecutor executor, CirculatingRunnable runnable) {
-        Preconditions.checkNotNull(executor);
-        Preconditions.checkNotNull(runnable);
-        return new CirculationTrigger(new AtomicLong(), executor, runnable);
+    protected TimedCirculation(TimedExecutor executor) {
+        this.state = new AtomicLong();
+        this.executor = executor;
     }
 
-    public final void fire() {
-        fire(Instant.now());
+    public final void trigger() {
+        trigger(Instant.now());
     }
 
-    public final void fire(Instant when) {
+    public final void trigger(Instant when) {
         Preconditions.checkNotNull(when);
         executor.execute(new TimedTask(executor), when);
     }
@@ -41,6 +39,8 @@ public final class CirculationTrigger {
     public final void suspend() {
         advanceVersion();
     }
+
+    protected abstract Optional<Duration> runOneIteration();
 
     private long advanceVersion() {
         long s, v;
@@ -81,10 +81,10 @@ public final class CirculationTrigger {
             Optional<Duration> nextDuration;
             for (;;) {
                 try {
-                    nextDuration = runnable.run();
+                    nextDuration = runOneIteration();
                 } catch (Throwable t) {
                     nextDuration = Optional.empty();
-                    LOGGER.error("Unexpected exception was caught while executing scheduled task: {}", CirculationTrigger.this, t);
+                    LOGGER.error("Unexpected exception was caught while executing scheduled task: {}", TimedCirculation.this, t);
                 }
                 for (;;) {
                     s = state.get();
@@ -104,11 +104,5 @@ public final class CirculationTrigger {
                 }
             }
         }
-    }
-
-    private CirculationTrigger(AtomicLong state, TimedExecutor executor, CirculatingRunnable runnable) {
-        this.state = state;
-        this.executor = executor;
-        this.runnable = runnable;
     }
 }
