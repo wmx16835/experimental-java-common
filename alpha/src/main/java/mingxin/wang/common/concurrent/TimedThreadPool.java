@@ -104,30 +104,33 @@ public final class TimedThreadPool implements TimedExecutor {
         public void run() {
             for (;;) {
                 mutex.lock();
+                if (isShutdown) {
+                    return;
+                }
                 try {
                     if (tasks.isEmpty()) {
                         task = null;
                         idle.offer(this);
                         do {
+                            condition.awaitUninterruptibly();
                             if (isShutdown) {
                                 return;
                             }
-                            condition.awaitUninterruptibly();
                         } while (task == null);
                     } else {
                         task = tasks.poll();
                     }
                     pending.add(this);
                     for (;;) {
-                        if (isShutdown) {
-                            return;
-                        }
                         try {
                             if (!condition.awaitUntil(Date.from(task.when))) {
                                 break;
                             }
                         } catch (InterruptedException e) {
                             LOGGER.error("Thread was interrupted while waiting for deadline", e);
+                        }
+                        if (isShutdown) {
+                            return;
                         }
                     }
                     pending.remove(this);
