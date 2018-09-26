@@ -33,7 +33,7 @@ public abstract class TimedCirculation {
 
     public final void trigger(Instant when) {
         Preconditions.checkNotNull(when);
-        executor.execute(new TimedTask(executor), when);
+        executor.execute(new TimedTask(), when);
     }
 
     public final void suspend() {
@@ -53,11 +53,9 @@ public abstract class TimedCirculation {
 
     private final class TimedTask implements Runnable {
         private long version;
-        private final TimedExecutor executor;
 
-        private TimedTask(TimedExecutor executor) {
+        private TimedTask() {
             this.version = advanceVersion();
-            this.executor = executor;
         }
 
         @Override
