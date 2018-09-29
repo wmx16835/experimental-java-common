@@ -8,7 +8,6 @@ import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.Iterator;
-import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.TreeSet;
@@ -123,16 +122,8 @@ public final class TimedThreadPool implements TimedExecutor {
                     }
                     pending.remove(this);
                     mutex.unlock();
-                    TimedRunnable next;
-                    try {
-                        Optional<TimedRunnable> nextOptional = task.what.call();
-                        if (nextOptional.isPresent()) {
-                            next = nextOptional.get();
-                        } else {
-                            break;
-                        }
-                    } catch (Throwable t) {
-                        LOGGER.error("Exception was caught while executing a timed task.", t);
+                    TimedRunnable next = task.run();
+                    if (next == null) {
                         break;
                     }
                     mutex.lock();

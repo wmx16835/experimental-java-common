@@ -2,7 +2,6 @@ package mingxin.wang.common.concurrent;
 
 import com.google.common.base.Preconditions;
 
-import java.time.Instant;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -17,7 +16,12 @@ public final class TimedExecutors {
         return new TimedExecutor() {
             @Override
             public void execute(TimedRunnable task) {
-                legacy.schedule(task.what, task.when.toEpochMilli(), TimeUnit.MILLISECONDS);
+                legacy.schedule(() -> {
+                    TimedRunnable next = task.run();
+                    if (next != null) {
+                        execute(next);
+                    }
+                }, task.when.toEpochMilli(), TimeUnit.MILLISECONDS);
             }
 
             @Override
