@@ -7,9 +7,7 @@ import java.util.Optional;
 import java.util.concurrent.Callable;
 
 /**
- * Copyright (C) Qunar.com - All Rights Reserved.
- *
- * @author Mingxin Wang
+ * Copyright (c) 2017-2018 Mingxin Wang. All rights reserved.
  */
 public final class TimedRunnable {
     final Instant when;
