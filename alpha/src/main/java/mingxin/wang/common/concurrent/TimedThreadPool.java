@@ -4,11 +4,11 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.PriorityQueue;
 import java.util.Queue;
 import java.util.TreeSet;
@@ -21,14 +21,14 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public final class TimedThreadPool implements TimedExecutor {
     private static final Logger LOGGER = LoggerFactory.getLogger(TimedThreadPool.class);
-    private static final Comparator<TimedTask> PRIORITIZED_TASK_COMPARATOR = Comparator.comparing(o -> o.when);
+    private static final Comparator<TimedRunnable> PRIORITIZED_TASK_COMPARATOR = Comparator.comparing(o -> o.when);
     private static final Comparator<Worker> PENDING_WORKER_COMPARATOR = Comparator
             .comparing((Worker worker) -> worker.task.when)
             .reversed()
             .thenComparing(worker -> worker.id);
 
     private final Lock mutex;
-    private final PriorityQueue<TimedTask> tasks;
+    private final PriorityQueue<TimedRunnable> tasks;
     private final Queue<Worker> idle;
     private final TreeSet<Worker> pending;
     private boolean isShutdown;
@@ -42,16 +42,14 @@ public final class TimedThreadPool implements TimedExecutor {
     }
 
     @Override
-    public void execute(Runnable what, Instant when) {
-        Preconditions.checkNotNull(what);
-        Preconditions.checkNotNull(when);
+    public void execute(TimedRunnable task) {
+        Preconditions.checkNotNull(task);
         Worker worker;
-        TimedTask task = new TimedTask(what, when);
         mutex.lock();
         try {
             if (idle.isEmpty()) {
                 Iterator<Worker> pendingIterator = pending.iterator();
-                if (pendingIterator.hasNext() && (worker = pendingIterator.next()).task.when.compareTo(when) > 0) {
+                if (pendingIterator.hasNext() && (worker = pendingIterator.next()).task.when.compareTo(task.when) > 0) {
                     pendingIterator.remove();
                     tasks.add(worker.task);
                 } else {
@@ -81,20 +79,10 @@ public final class TimedThreadPool implements TimedExecutor {
         }
     }
 
-    private static final class TimedTask {
-        private final Runnable what;
-        private final Instant when;
-
-        private TimedTask(Runnable what, Instant when) {
-            this.what = what;
-            this.when = when;
-        }
-    }
-
     final class Worker implements Runnable {
         private final int id;  // For performance of ordering
         private final Condition condition = mutex.newCondition();
-        private TimedTask task;
+        private TimedRunnable task;
 
         Worker(int id) {
             this.id = id;
@@ -107,19 +95,19 @@ public final class TimedThreadPool implements TimedExecutor {
                 if (isShutdown) {
                     return;
                 }
-                try {
-                    if (tasks.isEmpty()) {
-                        task = null;
-                        idle.offer(this);
-                        do {
-                            condition.awaitUninterruptibly();
-                            if (isShutdown) {
-                                return;
-                            }
-                        } while (task == null);
-                    } else {
-                        task = tasks.poll();
-                    }
+                if (tasks.isEmpty()) {
+                    task = null;
+                    idle.offer(this);
+                    do {
+                        condition.awaitUninterruptibly();
+                        if (isShutdown) {
+                            return;
+                        }
+                    } while (task == null);
+                } else {
+                    task = tasks.poll();
+                }
+                for (;;) {
                     pending.add(this);
                     for (;;) {
                         try {
@@ -134,13 +122,26 @@ public final class TimedThreadPool implements TimedExecutor {
                         }
                     }
                     pending.remove(this);
-                } finally {
                     mutex.unlock();
-                }
-                try {
-                    task.what.run();
-                } catch (Throwable t) {
-                    LOGGER.error("Exception was caught while executing a timed task.", t);
+                    TimedRunnable next;
+                    try {
+                        Optional<TimedRunnable> nextOptional = task.what.call();
+                        if (nextOptional.isPresent()) {
+                            next = nextOptional.get();
+                        } else {
+                            break;
+                        }
+                    } catch (Throwable t) {
+                        LOGGER.error("Exception was caught while executing a timed task.", t);
+                        break;
+                    }
+                    mutex.lock();
+                    if (!tasks.isEmpty() && tasks.peek().when.compareTo(next.when) < 0) {
+                        task = tasks.poll();
+                        tasks.offer(next);
+                    } else {
+                        task = next;
+                    }
                 }
             }
         }

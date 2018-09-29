@@ -16,8 +16,8 @@ public final class TimedExecutors {
         Preconditions.checkNotNull(legacy);
         return new TimedExecutor() {
             @Override
-            public void execute(Runnable what, Instant when) {
-                legacy.schedule(what, when.toEpochMilli(), TimeUnit.MILLISECONDS);
+            public void execute(TimedRunnable task) {
+                legacy.schedule(task.what, task.when.toEpochMilli(), TimeUnit.MILLISECONDS);
             }
 
             @Override

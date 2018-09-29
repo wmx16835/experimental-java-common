@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -33,7 +34,7 @@ public abstract class TimedCirculation {
 
     public final void trigger(Instant when) {
         Preconditions.checkNotNull(when);
-        executor.execute(new TimedTask(), when);
+        executor.execute(TimedRunnable.of(when, new TimedTask(advanceVersion())));
     }
 
     public final void suspend() {
@@ -51,20 +52,20 @@ public abstract class TimedCirculation {
         return v;
     }
 
-    private final class TimedTask implements Runnable {
+    private final class TimedTask implements Callable<Optional<TimedRunnable>> {
         private long version;
 
-        private TimedTask() {
-            this.version = advanceVersion();
+        private TimedTask(long version) {
+            this.version = version;
         }
 
         @Override
-        public void run() {
+        public Optional<TimedRunnable> call() throws Exception {
             long s;
             for (;;) {
                 s = state.get();
                 if ((s & IDLE_STATE_MASK) != version) {
-                    return;
+                    return Optional.empty();
                 }
                 if ((s & RUNNING_FLAG_MASK) == 0) {  // No other instances are running
                     if (state.weakCompareAndSet(s, s | RUNNING_FLAG_MASK)) {
@@ -72,16 +73,17 @@ public abstract class TimedCirculation {
                     }
                 } else {
                     if (state.weakCompareAndSet(s, s & NO_RESERVATION_STATE_MASK | (s << RESERVATION_STATE_OFFSET))) {
-                        return;
+                        return Optional.empty();
                     }
                 }
             }
-            Optional<Duration> nextDuration;
+            Duration nextDuration;
             for (;;) {
                 try {
-                    nextDuration = runOneIteration();
+                    Optional<Duration> nextDurationOptional = runOneIteration();
+                    nextDuration = nextDurationOptional.orElse(null);
                 } catch (Throwable t) {
-                    nextDuration = Optional.empty();
+                    nextDuration = null;
                     LOGGER.error("Unexpected exception was caught while executing scheduled task: {}", TimedCirculation.this, t);
                 }
                 for (;;) {
@@ -93,10 +95,9 @@ public abstract class TimedCirculation {
                         }
                     } else {
                         if (state.weakCompareAndSet(s, s & IDLE_STATE_MASK)) {  // Reset running state
-                            if (version == (s & IDLE_STATE_MASK)) {
-                                nextDuration.ifPresent(delay -> executor.execute(this, Instant.now().plus(delay)));
-                            }
-                            return;
+                            return version == (s & IDLE_STATE_MASK) && nextDuration != null
+                                    ? Optional.of(TimedRunnable.of(Instant.now().plus(nextDuration), this))
+                                    : Optional.empty();
                         }
                     }
                 }
