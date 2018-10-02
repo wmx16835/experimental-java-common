@@ -2,18 +2,10 @@ package mingxin.wang.common;
 
 import mingxin.wang.common.concurrent.AsyncMutex;
 import mingxin.wang.common.concurrent.DisposableBlocker;
-import mingxin.wang.common.concurrent.TimedExecutors;
-import mingxin.wang.common.concurrent.TimedRunnable;
-import mingxin.wang.common.concurrent.TimedThreadPool;
-import mingxin.wang.common.legacy.FixedThreadPoolExecutor;
 import mingxin.wang.common.util.ResourceMonitor;
 import org.junit.AfterClass;
 import org.junit.Test;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.Optional;
-import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -38,39 +30,6 @@ public class AsyncMutexTest {
         threadPool.shutdown();
         threadPool.awaitTermination(1, TimeUnit.DAYS);
         System.out.println("Thread pool terminated.");
-    }
-
-    @Test
-    public void testAsyncMutexVsCpp() {
-        final int taskCount = 1000000;
-        ResourceMonitor resourceMonitor = new ResourceMonitor("async-mutex-vs-cpp");
-        FixedThreadPoolExecutor pool = new FixedThreadPoolExecutor(10);
-        TimedThreadPool timedPool = TimedExecutors.newTimedThreadPool(10);
-        AsyncMutex mutex = AsyncMutex.on(pool);
-        TreeSet<Integer> set = new TreeSet<>();
-        DisposableBlocker blocker = new DisposableBlocker();
-        Instant now = Instant.now();
-
-        for (int i = 0; i < taskCount; ++i) {
-            int current = i;
-            TimedRunnable task = TimedRunnable.of(now.plus(Duration.ofMillis((long) (Math.random() * 1000 + 500))), () -> {
-                mutex.attach(() -> {
-                    set.add(current);
-                    return set.size() == taskCount;
-                }, ok -> {
-                    if (ok) {
-                        blocker.unblock();
-                    }
-                });
-                return Optional.empty();
-            });
-            timedPool.execute(task);
-        }
-
-        blocker.block();
-        resourceMonitor.record();
-        pool.shutdown();
-        timedPool.close();
     }
 
     @Test

@@ -3,10 +3,10 @@ package mingxin.wang.common.concurrent;
 import com.google.common.collect.Lists;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -19,7 +19,7 @@ public abstract class BatchConsumer<T> {
     private final Duration gap;
     private final TimedCirculation circulation;
 
-    protected BatchConsumer(int batchSize, Duration gap, TimedExecutor executor) {
+    protected BatchConsumer(int batchSize, Duration gap, ScheduledExecutorService executor) {
         this.batchSize = batchSize;
         this.gap = gap;
         this.circulation = new TimedCirculation(executor) {
@@ -42,7 +42,7 @@ public abstract class BatchConsumer<T> {
         queue.offer(data);
         int current = count.incrementAndGet();
         if (current == 1) {
-            circulation.trigger(Instant.now().plus(gap));
+            circulation.trigger(gap);
         }
         if (current == batchSize) {
             circulation.trigger();

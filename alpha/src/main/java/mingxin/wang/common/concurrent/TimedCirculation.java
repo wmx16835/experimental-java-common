@@ -1,13 +1,12 @@
 package mingxin.wang.common.concurrent;
 
-import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Optional;
-import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -21,20 +20,19 @@ public abstract class TimedCirculation {
     private static final long NO_RESERVATION_STATE_MASK = IDLE_STATE_MASK | RUNNING_FLAG_MASK;
 
     private final AtomicLong state;
-    private final TimedExecutor executor;
+    private final ScheduledExecutorService executor;
 
-    protected TimedCirculation(TimedExecutor executor) {
+    protected TimedCirculation(ScheduledExecutorService executor) {
         this.state = new AtomicLong();
         this.executor = executor;
     }
 
     public final void trigger() {
-        trigger(Instant.now());
+        trigger(Duration.ZERO);
     }
 
-    public final void trigger(Instant when) {
-        Preconditions.checkNotNull(when);
-        executor.execute(TimedRunnable.of(when, new TimedTask(advanceVersion())));
+    public final void trigger(Duration delay) {
+        executor.schedule(new Task(advanceVersion()), delay.toNanos(), TimeUnit.NANOSECONDS);
     }
 
     public final void suspend() {
@@ -52,20 +50,24 @@ public abstract class TimedCirculation {
         return v;
     }
 
-    private final class TimedTask implements Callable<Optional<TimedRunnable>> {
+    private void schedule(Task task, Duration duration) {
+        executor.schedule(task, duration.toNanos(), TimeUnit.NANOSECONDS);
+    }
+
+    private final class Task implements Runnable {
         private long version;
 
-        private TimedTask(long version) {
+        private Task(long version) {
             this.version = version;
         }
 
         @Override
-        public Optional<TimedRunnable> call() throws Exception {
+        public void run() {
             long s;
             for (;;) {
                 s = state.get();
                 if ((s & IDLE_STATE_MASK) != version) {
-                    return Optional.empty();
+                    return;
                 }
                 if ((s & RUNNING_FLAG_MASK) == 0) {  // No other instances are running
                     if (state.weakCompareAndSet(s, s | RUNNING_FLAG_MASK)) {
@@ -73,17 +75,17 @@ public abstract class TimedCirculation {
                     }
                 } else {
                     if (state.weakCompareAndSet(s, s & NO_RESERVATION_STATE_MASK | (s << RESERVATION_STATE_OFFSET))) {
-                        return Optional.empty();
+                        return;
                     }
                 }
             }
-            Duration nextDuration;
             for (;;) {
+                Duration nextDelay;
                 try {
-                    Optional<Duration> nextDurationOptional = runOneIteration();
-                    nextDuration = nextDurationOptional.orElse(null);
+                    Optional<Duration> nextDelayOptional = runOneIteration();
+                    nextDelay = nextDelayOptional.orElse(null);
                 } catch (Throwable t) {
-                    nextDuration = null;
+                    nextDelay = null;
                     LOGGER.error("Unexpected exception was caught while executing scheduled task: {}", TimedCirculation.this, t);
                 }
                 for (;;) {
@@ -95,9 +97,10 @@ public abstract class TimedCirculation {
                         }
                     } else {
                         if (state.weakCompareAndSet(s, s & IDLE_STATE_MASK)) {  // Reset running state
-                            return version == (s & IDLE_STATE_MASK) && nextDuration != null
-                                    ? Optional.of(TimedRunnable.of(Instant.now().plus(nextDuration), this))
-                                    : Optional.empty();
+                            if (version == (s & IDLE_STATE_MASK) && nextDelay != null) {
+                                schedule(this, nextDelay);
+                            }
+                            return;
                         }
                     }
                 }
