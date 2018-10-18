@@ -68,7 +68,7 @@ public class ConcurrencyLibTest {
         public void accept(ConcurrentInvoker.Breakpoint breakpoint) {
             someExecutor.execute(() -> {
                 splitAndExecute(breakpoint, repetition);
-                breakpoint.arrive();
+                breakpoint.join();
             });
         }
 

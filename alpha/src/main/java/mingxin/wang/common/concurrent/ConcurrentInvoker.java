@@ -81,11 +81,11 @@ public final class ConcurrentInvoker {
                     try {
                         task.run();
                     } finally {
-                        breakpoint.arrive();
+                        breakpoint.join();
                     }
                 });
             } catch (Throwable t) {
-                breakpoint.arrive();
+                breakpoint.join();
                 throw t;
             }
         });
@@ -104,7 +104,7 @@ public final class ConcurrentInvoker {
             try {
                 callback.run();
             } finally {
-                upper.arrive();
+                upper.join();
             }
         };
     }
@@ -118,7 +118,7 @@ public final class ConcurrentInvoker {
             this.callback = callback;
         }
 
-        public void arrive() {
+        public void join() {
             if (count.getAndDecrement() == 1) {
                 callback.run();
             }

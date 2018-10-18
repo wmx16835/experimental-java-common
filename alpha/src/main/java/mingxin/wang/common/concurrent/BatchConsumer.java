@@ -17,35 +17,32 @@ public abstract class BatchConsumer<T> {
     private final AtomicInteger count = new AtomicInteger();
     private final int batchSize;
     private final Duration gap;
-    private final TimedCirculation circulation;
+    private final CirculationTrigger trigger;
 
     protected BatchConsumer(int batchSize, Duration gap, ScheduledExecutorService executor) {
         this.batchSize = batchSize;
         this.gap = gap;
-        this.circulation = new TimedCirculation(executor) {
-            @Override
-            protected Optional<Duration> runOneIteration() {
-                int scale = count.getAndSet(0);
-                if (scale != 0) {
-                    ArrayList<T> data = Lists.newArrayListWithCapacity(scale);
-                    for (int i = 0; i < scale; ++i) {
-                        data.add(queue.pull());
-                    }
-                    consume(data);
+        this.trigger = CirculationTrigger.bind(executor, () -> {
+            int scale = count.getAndSet(0);
+            if (scale != 0) {
+                ArrayList<T> data = Lists.newArrayListWithCapacity(scale);
+                for (int i = 0; i < scale; ++i) {
+                    data.add(queue.pull());
                 }
-                return Optional.empty();
+                consume(data);
             }
-        };
+            return Optional.empty();
+        });
     }
 
     public final void accept(T data) {
         queue.offer(data);
         int current = count.incrementAndGet();
         if (current == 1) {
-            circulation.trigger(gap);
+            trigger.fire(gap);
         }
         if (current == batchSize) {
-            circulation.trigger();
+            trigger.fire();
         }
     }
 
