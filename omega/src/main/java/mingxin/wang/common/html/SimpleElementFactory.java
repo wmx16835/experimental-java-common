@@ -17,33 +17,36 @@ public final class SimpleElementFactory {
     }
 
     public static String makeHeader(String title) {
-        return "<!DOCTYPE html>" + System.lineSeparator()
-                + StaticElementBuilder.of("head").addContent("<meta charset=\"UTF-8\">").addContent(StaticElementBuilder.of("title").addContent(title)).build();
+        String head = "<meta charset=\"UTF-8\">" + StaticElementBuilder.of("title").build(title);
+        return "<!DOCTYPE html>" + System.lineSeparator() + StaticElementBuilder.of("head").build(head) + System.lineSeparator();
     }
 
     public static String makeLabel(String name) {
-        return StaticElementBuilder.of("label").addContent(name).build();
+        return StaticElementBuilder.of("label").build(name);
     }
 
     public static String makePostForm(String action, String... items) {
         StaticElementBuilder result = StaticElementBuilder.of("form")
                 .addAttribute("action", action)
                 .addAttribute("method", "post");
+        StringBuilder content = new StringBuilder();
         for (String item : items) {
-            result.addContent(makeParagraph(item));
+            content.append(makeParagraph(item));
         }
-        return result.build();
+        return result.build(content.toString());
     }
 
-    public static String makeFilePostForm(String action, Iterable<Pair<String, String>> pairs) {
+    public static String makeFilePostForm(String action, String name, Iterable<Pair<String, String>> pairs) {
         StaticElementBuilder result = StaticElementBuilder.of("form")
                 .addAttribute("action", action)
                 .addAttribute("method", "post")
                 .addAttribute("enctype", "multipart/form-data");
+        StringBuilder content = new StringBuilder();
         for (Pair<String, String> pair : pairs) {
-            result.addContent(makeParagraph(makeLabel(pair.getLeft()) + makeFileInput(pair.getRight())));
+            content.append(makeParagraph(makeLabel(pair.getLeft()) + makeFileInput(pair.getRight())));
         }
-        return result.build();
+        content.append(makeSubmitButton(name));
+        return result.build(content.toString());
     }
 
     public static String makeLink(String display, String uri) {
@@ -55,7 +58,7 @@ public final class SimpleElementFactory {
         if (newWindow) {
             result.addAttribute("target", "_blank");
         }
-        return result.addContent(display).build();
+        return result.build(display);
     }
 
     public static String makeLine() {
@@ -63,14 +66,14 @@ public final class SimpleElementFactory {
     }
 
     public static String makeParagraph(String content) {
-        return StaticElementBuilder.of("p").addContent(content).build();
+        return StaticElementBuilder.of("p").build(content);
     }
 
     public static String makeText(String data) {
-        return StaticElementBuilder.of("pre").addContent(
+        return StaticElementBuilder.of("pre").build(
                 data.replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")).build();
+                        .replaceAll("<", "&lt;")
+                        .replaceAll(">", "&gt;"));
     }
 
     public static String makeDateInput(String name) {
@@ -94,7 +97,11 @@ public final class SimpleElementFactory {
     }
 
     public static String makeTextArea(String name, String placeholder, String value) {
-        return makeInputBuilder("textarea", name, placeholder, null).addContent(value).build();
+        StaticElementBuilder builder = StaticElementBuilder.of("textarea").addAttribute("name", name);
+        if (placeholder != null) {
+            builder.addAttribute("placeholder", placeholder);
+        }
+        return builder.build(value == null ? "" : value);
     }
 
     public static String makePasswordInput(String name) {
@@ -120,14 +127,15 @@ public final class SimpleElementFactory {
 
     public static String makeSelectInput(String name, String selected, Iterable<? extends Pair<String, String>> options) {
         StaticElementBuilder result = StaticElementBuilder.of("select").addAttribute("name", name);
+        StringBuilder content = new StringBuilder();
         for (Pair<String, String> option : options) {
             StaticElementBuilder builder = StaticElementBuilder.of("option").addAttribute("value", option.getValue());
             if (option.getValue().equals(selected)) {
                 builder.addAttribute("selected", "selected");
             }
-            result.addContent(builder.addContent(option.getKey()));
+            content.append(builder.build(option.getKey()));
         }
-        return result.build();
+        return result.build(content.toString());
     }
 
     private static StaticElementBuilder makeInputBuilder(String type, String name, String placeholder, String value) {

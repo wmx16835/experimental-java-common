@@ -28,7 +28,7 @@ import java.util.function.Predicate;
 /**
  * Copyright (c) 2017-2018 Mingxin Wang. All rights reserved.
  */
-public final class ExcelUtil {
+public final class ExcelUtils {
     private static final String MERGE_PREFIX = "MERGED_TO_";
     private static final String[][] EMPTY_SHEET_DATA = new String[0][0];
 
@@ -185,14 +185,13 @@ public final class ExcelUtil {
         ArrayList<ArrayList<String>> result = new ArrayList<>();
         for (String[] row : sheetData) {
             Preconditions.checkState(sheetData[0].length == row.length);
-            ArrayList<String> rowData = new ArrayList<>();
-            rowData.addAll(Arrays.asList(row));
+            ArrayList<String> rowData = new ArrayList<>(Arrays.asList(row));
             result.add(rowData);
         }
         return result;
     }
 
-    private ExcelUtil() {
+    private ExcelUtils() {
     }
 
     private static List<SheetData> readByIndex(Workbook workbook, Iterable<? extends Integer> indexes) {
@@ -249,7 +248,7 @@ public final class ExcelUtil {
             int rowIndex = row.getRowNum();
             for (Cell cell : row) {
                 int columnIndex = cell.getColumnIndex();
-                String data = cell.toString();
+                String data = cell.getStringCellValue();  // Do not support numeric cells
                 if (!data.isEmpty()) {
                     m = Math.max(m, columnIndex);
                     n = Math.max(n, rowIndex);

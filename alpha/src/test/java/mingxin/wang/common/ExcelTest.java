@@ -1,7 +1,7 @@
 package mingxin.wang.common;
 
 import mingxin.wang.common.excel.ExcelFormat;
-import mingxin.wang.common.excel.ExcelUtil;
+import mingxin.wang.common.excel.ExcelUtils;
 import mingxin.wang.common.excel.IllegalExcelDataException;
 import mingxin.wang.common.excel.SheetData;
 import mingxin.wang.common.util.ResourceMonitor;
@@ -48,7 +48,7 @@ public class ExcelTest {
         SheetData data = generateTest("test", 10000, 100);
         try (FileOutputStream fileOutputStream = getOutputStream("test.xlsx")) {
             ResourceMonitor monitor = new ResourceMonitor("Excel Write");
-            ExcelUtil.writeSheet(fileOutputStream, ExcelFormat.XLSX, data);
+            ExcelUtils.writeSheet(fileOutputStream, ExcelFormat.XLSX, data);
             monitor.record();
             monitor.stop();
         } catch (Exception e) {
@@ -59,7 +59,7 @@ public class ExcelTest {
     private static void testRead() {
         try (FileInputStream fileInputStream = getInputStream("test.xlsx")) {
             ResourceMonitor monitor = new ResourceMonitor("Excel Read");
-            Optional<SheetData> sheetData = ExcelUtil.readSheet(fileInputStream, ExcelFormat.XLSX, "test");
+            Optional<SheetData> sheetData = ExcelUtils.readSheet(fileInputStream, ExcelFormat.XLSX, "test");
             monitor.record();
             monitor.stop();
         } catch (Exception e) {
