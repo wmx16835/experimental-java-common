@@ -2,6 +2,7 @@ package mingxin.wang.common.http;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.extern.slf4j.Slf4j;
+import mingxin.wang.common.serialization.Jsons;
 import org.apache.commons.codec.binary.Base64;
 
 import javax.crypto.BadPaddingException;
@@ -40,7 +41,7 @@ public final class AESEncryptor {
         try {
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
             cipher.init(Cipher.ENCRYPT_MODE, key);
-            byte[] encrypted = Jsons.getDefaultObjectMapper().writeValueAsBytes(data);
+            byte[] encrypted = Jsons.DEFAULT_OBJECT_MAPPER.writeValueAsBytes(data);
             return Base64.encodeBase64String(cipher.doFinal(encrypted));
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | IllegalBlockSizeException | BadPaddingException e) {
             log.error("内部错误，请检查加密模块配置", e);
@@ -57,7 +58,7 @@ public final class AESEncryptor {
             Cipher cipher = Cipher.getInstance(CIPHER_ALGORITHM);
             cipher.init(Cipher.DECRYPT_MODE, key);
             byte[] decrypted = cipher.doFinal(Base64.decodeBase64(data));
-            return Jsons.getDefaultObjectMapper().readValue(decrypted, clazz);
+            return Jsons.DEFAULT_OBJECT_MAPPER.readValue(decrypted, clazz);
         } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
             log.error("内部错误，请检查加密模块配置", e);
             throw new LogicError("加密模块配置错误", e);

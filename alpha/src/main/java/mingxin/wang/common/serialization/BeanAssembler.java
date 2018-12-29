@@ -108,7 +108,7 @@ public final class BeanAssembler<T> {
             Constructor constructor = getStringConstructor(clazz);
             return constructor == null ? (data, s) -> {
                 try {
-                    field.set(data, Jsons.getDefaultObjectMapper().readValue(s, field.getType()));
+                    field.set(data, Jsons.DEFAULT_OBJECT_MAPPER.readValue(s, field.getType()));
                 } catch (IOException e1) {
                     throw new InvocationTargetException(e1);
                 }
